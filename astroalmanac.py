@@ -405,7 +405,10 @@ axes.set_ylim([start_plot_hour-extra_border_y,end_plot_hour+extra_border_y])
 # Put the date range on the chart.
 date_label_x = mid_chart if float(args.latitude) > 0 else 0
 axes.text (date_label_x, start_plot_hour-extra_border_y,
-        "%s - %s UTC" % (start_date, end_date),
+        "%s - %s UTC%+d" % (
+            ephem.localtime (start_date).strftime ("%F"),
+            ephem.localtime (end_date).strftime ("%F"),
+            args.tzoffset),
         va="bottom", ha="center")
 
 draw_time_lines (start_plot_hour, end_plot_hour, days, axes, times)
