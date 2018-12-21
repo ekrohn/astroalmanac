@@ -95,7 +95,16 @@ obcolor["mars"]     = '#f00000'
 obcolor["jupiter"]  = '#6000a0'
 obcolor["saturn"]   = '#a0a040'
 obcolor["uranus"]   = '#0020d0'
-obcolor["star"]   = '#808080'
+obcolor["star"]     = '#808080'
+obcolor["fullgrid"] = '#505050'
+obcolor["halfgrid"] = '#808080'
+
+obsize = {}
+obsize["month"]  = 7
+obsize["day"]    = 6
+obsize["hour"]   = 5
+obsize["object"] = 4
+obsize["sun"]    = 3
 
 if args.verbose:
     print ("start_date = %s, end_date = %s" % (
@@ -105,30 +114,56 @@ here.date = start_date
 days = range (days_in_chart)
 times = {}
 
+def text_rotation (day, time, previous_day, previous_time):
+    '''Day is the x-axis, time is the y-axis.
+    Figure out how to rotate text to match the slope of the curve.
+    Return rotation in degrees. '''
+    if previous_day == None or previous_time == None:
+        return 0
+    if day == None or time == None:
+        return 0
+    slope = (time - previous_time) / (day - previous_day)
+    # slope here is odd - one hour in the y-axis is about the same size on
+    # the plot as 14 days on the x-axis. So scale the slope accordingly.
+    slope *= 14
+    degree = math.degrees (math.atan (slope))
+    # print ("text rotation %3.2f deg, (%3.2f - %3.2f) / (%3.2f - %3.2f)" % ( degree, time, previous_time, day, previous_day))
+    return degree
+
 def draw_time_lines (start_hour, end_hour, days, axes, times):
     for h in range (start_hour, end_hour+1):
-        # Full hour dotted line.
+        # Full hour dotted line. One dot per day.
         y = []
         for d in days:
             sun_rise = times["sun"]["rise"][d]
             sun_set  = times["sun"]["set"][d]
             y.append (math.nan if (h > sun_rise or h < sun_set) else h)
-        axes.plot (days, y, color='white', marker='.', markerfacecolor='brown', lw=1)
-        axes.text (0, h, "%d " % ((h+12)%24,), va="center", ha="right")
-        axes.text (days[-1], h, " %d" % ((h+12)%24,), va="center", ha="left")
-        # Half hour dotted line.
+        axes.plot (days, y,
+                color=obcolor['fullgrid'], linewidth=0.0,
+                marker='+', markerfacecolor=obcolor['fullgrid'], markersize=0.1)
+        # Label the hours
+        axes.text (0, h, "%02d" % ((h+12)%24,),
+                va="center", ha="right", rotation=90, fontsize=obsize['day'])
+        axes.text (days[-1]+1, h, "%02d" % ((h+12)%24,),
+                va="center", ha="left", rotation=90, fontsize=obsize['day'])
+        # Half hour dotted line. One dot per day.
         y = []
         m = h + 0.5
         for d in days:
             sun_rise = times["sun"]["rise"][d]
             sun_set  = times["sun"]["set"][d]
             y.append (math.nan if (m > sun_rise or m < sun_set) else m)
-        axes.plot (days, y, color='white', marker='.', markerfacecolor='brown', lw=1)
+        axes.plot (days, y,
+                color=obcolor['fullgrid'], linewidth=0.0,
+                marker='+', markerfacecolor=obcolor['fullgrid'], markersize=0.1)
     # Solid line for midnight localtime (non-DST).
-    axes.plot (days, [12 for d in days], color='black')
+    axes.plot (days, [12 for d in days], color='black', linewidth=0.1)
     return
 
 def draw_date_lines (start_hour, end_hour, days, axes, times, start_date, where):
+    previous_d = None
+    previous_sun_rise = None
+    previous_sun_set = None
     # Dots every 7 days
     for d in days:
         if (d % 7 != 0):
@@ -141,16 +176,34 @@ def draw_date_lines (start_hour, end_hour, days, axes, times, start_date, where)
         for t in range (start_hour*12, end_hour*12):
             h = t / 12. # back to hours
             y.append (math.nan if (h >= sun_rise or h <= sun_set) else h)
-        axes.plot (x, y, color='white', marker='.', markerfacecolor='brown', lw=1)
+        axes.plot (x, y,
+                color=obcolor['fullgrid'], linewidth=0.01,
+                marker='+', markerfacecolor='red', markersize=0.1)
         where.date = start_date
         day = ephem.localtime (ephem.Date(here.date + d))
-        axes.text (d, sun_set, "%d" % (day.day,), va="top", ha="center")
-        if day.day <= 7:
-            axes.text (d, sun_set-1/6., day.strftime("%B"), va="top", ha="left")
-            axes.text (d, sun_rise+1/6., day.strftime("%B"), va="bottom", ha="left")
+        # Label bottom sunset curve with day of month.
+        axes.text (d, sun_set, "%d " % (day.day,),
+                va="top", ha="center", rotation=90,
+                fontsize=obsize['day'])
+        if day.day >= 12 and day.day <= 18:
+            # Label sunset and sunrise curves with month names.
+            axes.text (d, sun_set-3/6., day.strftime("%B"),
+                    va="top", ha="center",
+                    rotation=text_rotation(d,sun_set, previous_d, previous_sun_set),
+                    fontsize=obsize['month'])
+            axes.text (d, sun_rise+3/6., day.strftime("%B"),
+                    va="bottom", ha="center",
+                    rotation=text_rotation(d,sun_rise, previous_d, previous_sun_rise),
+                    fontsize=obsize['month'])
         day = ephem.localtime (ephem.Date(here.date + d +end_hour*ephem.hour))
-        axes.text (d, sun_rise, "%d" % (day.day,), va="bottom", ha="center")
+        # Label top sunrise curve with day of month.
+        axes.text (d, sun_rise, " %d" % (day.day,),
+                va="bottom", ha="center", rotation=90,
+                fontsize=obsize['day'])
         #axes.text (days[-1], h, " %d" % ((h+12)%24,), va="center", ha="left")
+        previous_d = d
+        previous_sun_rise = sun_rise
+        previous_sun_set = sun_set
     # Solid line for midnight localtime (non-DST).
     axes.plot (days, [12 for i in days], color='black')
     return
@@ -238,13 +291,22 @@ def rise_set_transit (object, name, where, times, horizon = '0',
     print (name, end=' ')
     show_elapsed_time()
 
-def label_object (time, label, obcolor):
+def label_object (times, obj, event, **kwargs):
     '''
     Attempt to label an object's time plot.
     Most objects will have discontiguous segments. Try to place the label
     near the middle of each segment.
     '''
+    if not "va" in kwargs:
+        kwargs["va"] = "bottom"
+    if not "label" in kwargs:
+        kwargs["label"] = "%s %s" % (obj, event)
+    if obj in obcolor:
+        color = obcolor[obj]
+    else:
+        color = obcolor["star"]
     first_non_nan = None
+    time = times[obj][event]
     for i in days:
         # print ("%3d  %5.3f" % (i, time[i]))
         if math.isnan (time[i]):
@@ -254,8 +316,13 @@ def label_object (time, label, obcolor):
             else:
                 # Compute the label position
                 mid = int ((i + first_non_nan) / 2)
-                # print ("non-nan to nan, label %s at %d,%5.3f" % (label, mid, time[mid]))
-                axes.text (mid, time[mid], label, va="bottom", ha="center", color=obcolor)
+                # print ("non-nan to nan, label %s at %d,%5.3f" % (kwargs['label'], mid, time[mid]))
+                # TODO: the mid-1 might not be valid
+                axes.text (mid, time[mid], kwargs['label'],
+                        va=kwargs["va"], ha="center",
+                        color=color,
+                        rotation=text_rotation(mid,time[mid], mid-1, time[mid-1]),
+                        fontsize=obsize['object'])
                 first_non_nan = None
         else: # non-nan
             if first_non_nan == None:
@@ -271,8 +338,12 @@ def label_object (time, label, obcolor):
     else:
         # Compute the label position
         mid = int ((days[-1] + first_non_nan) / 2)
-        # print ("last is non-nan, label %s at %d,%5.3f" % (label, mid, time[mid]))
-        axes.text (mid, time[mid], label, va="bottom", ha="center", color=obcolor)
+        # print ("last is non-nan, label %s at %d,%5.3f" % (kwargs['label'], mid, time[mid]))
+        axes.text (mid, time[mid], kwargs['label'],
+                va=kwargs["va"], ha="center",
+                color=color,
+                rotation=text_rotation(mid,time[mid], mid-1, time[mid-1]),
+                fontsize=obsize['object'])
     return
 
 def plot_moon_phases (axes, days, where, times):
@@ -391,17 +462,6 @@ start_plot_hour = math.floor (min(times["sun"]["set"]))
 end_plot_hour = math.ceil (max(times["sun"]["rise"]))
 print ("start_plot_hour = %s, end_plot_hour = %s" % (start_plot_hour, end_plot_hour))
 
-rise_set_transit (ephem.Moon(), "moon", here, times, do_transit=False)
-rise_set_transit (ephem.Mercury(), "mercury", here, times, do_transit=False)
-rise_set_transit (ephem.Venus(), "venus", here, times, do_transit=False)
-rise_set_transit (ephem.Mars(), "mars", here, times)
-rise_set_transit (ephem.Jupiter(), "jupiter", here, times)
-rise_set_transit (ephem.Saturn(), "saturn", here, times)
-rise_set_transit (ephem.Uranus(), "uranus", here, times)
-rise_set_transit (ephem.star("Sirius"), "sirius", here, times)
-rise_set_transit (ephem.star("Regulus"), "regulus", here, times)
-#rise_set_transit (ephem.star("Polaris"), "polaris", here, times, do_rise=False, do_set=False)
-
 fig = plt.figure()
 axes = fig.add_axes([0.0, 0.0, 1.0, 1.0]) # left, bottom, width, height  range 0-1
 axes.set_xlabel("Date")
@@ -424,21 +484,32 @@ axes.text (date_label_x, start_plot_hour-extra_border_y,
             args.tzoffset),
         va="bottom", ha="center")
 
-draw_time_lines (start_plot_hour, end_plot_hour, days, axes, times)
 draw_date_lines (start_plot_hour, end_plot_hour, days, axes, times, start_date, here)
+draw_time_lines (start_plot_hour, end_plot_hour, days, axes, times)
+
+rise_set_transit (ephem.Moon(), "moon", here, times, do_transit=False)
+rise_set_transit (ephem.Mercury(), "mercury", here, times, do_transit=False)
+rise_set_transit (ephem.Venus(), "venus", here, times, do_transit=False)
+rise_set_transit (ephem.Mars(), "mars", here, times)
+rise_set_transit (ephem.Jupiter(), "jupiter", here, times)
+rise_set_transit (ephem.Saturn(), "saturn", here, times)
+rise_set_transit (ephem.Uranus(), "uranus", here, times)
+rise_set_transit (ephem.star("Sirius"), "sirius", here, times)
+rise_set_transit (ephem.star("Regulus"), "regulus", here, times)
+#rise_set_transit (ephem.star("Polaris"), "polaris", here, times, do_rise=False, do_set=False)
 
 axes.plot (days, times["sun"]["set"], color=obcolor['sun'])
 axes.plot (days, times["sun"]["rise"], color=obcolor['sun'])
-axes.text (mid_chart, times["sun"]["set"][mid_chart], "sun set", va="top", ha="left", color=obcolor['sun'])
-axes.text (mid_chart, times["sun"]["rise"][mid_chart], "sun rise", va="bottom", ha="left", color=obcolor['sun'])
+label_object (times, 'sun', 'rise', va="top")
+label_object (times, 'sun', 'set', va="bottom")
 axes.plot (days, times["civil"]["set"], color=obcolor['civil'])
 axes.plot (days, times["civil"]["rise"], color=obcolor['civil'])
 axes.plot (days, times["nautical"]["set"], color=obcolor['nautical'])
 axes.plot (days, times["nautical"]["rise"], color=obcolor['nautical'])
 axes.plot (days, times["astro"]["set"], color=obcolor['astro'])
 axes.plot (days, times["astro"]["rise"], color=obcolor['astro'])
-axes.text (mid_chart, times["astro"]["set"][mid_chart], "twilight", va="top", ha="right", color=obcolor['astro'])
-axes.text (mid_chart, times["astro"]["rise"][mid_chart], "twilight", va="bottom", ha="right", color=obcolor['astro'])
+label_object (times, 'astro', 'set', label="evening twilight", va="top")
+label_object (times, 'astro', 'rise', label="morning twilight", va="bottom")
 
 # When sun is down, plot moon rise time or set time with the phase of the
 # moon at that moment.
@@ -449,47 +520,47 @@ axes.text (mid_chart, times["astro"]["rise"][mid_chart], "twilight", va="bottom"
 
 axes.plot (days, times["mercury"]["rise"], color=obcolor['mercury'])
 axes.plot (days, times["mercury"]["set"], color=obcolor['mercury'])
-label_object (times['mercury']['rise'], 'mercury rise', obcolor['mercury'])
-label_object (times['mercury']['set'], 'mercury set', obcolor['mercury'])
+label_object (times, 'mercury', 'rise')
+label_object (times, 'mercury', 'set')
 
 axes.plot (days, times["venus"]["rise"], color=obcolor['venus'])
 axes.plot (days, times["venus"]["set"], color=obcolor['venus'])
-label_object (times['venus']['rise'], 'venus rise', obcolor['venus'])
-label_object (times['venus']['set'], 'venus set', obcolor['venus'])
+label_object (times, 'venus', 'rise')
+label_object (times, 'venus', 'set')
 
 axes.plot (days, times["mars"]["rise"], color=obcolor['mars'])
 axes.plot (days, times["mars"]["transit"], color=obcolor['mars'])
 axes.plot (days, times["mars"]["set"], color=obcolor['mars'])
-label_object (times['mars']['rise'], 'mars rise', obcolor['mars'])
-label_object (times['mars']['transit'], 'mars transit', obcolor['mars'])
-label_object (times['mars']['set'], 'mars set', obcolor['mars'])
+label_object (times, 'mars', 'rise')
+label_object (times, 'mars', 'transit')
+label_object (times, 'mars', 'set')
 
 axes.plot (days, times["jupiter"]["rise"], color=obcolor['jupiter'])
 axes.plot (days, times["jupiter"]["transit"], color=obcolor['jupiter'])
 axes.plot (days, times["jupiter"]["set"], color=obcolor['jupiter'])
-label_object (times['jupiter']['rise'], 'jupiter rise', obcolor['jupiter'])
-label_object (times['jupiter']['transit'], 'jupiter transit', obcolor['jupiter'])
-label_object (times['jupiter']['set'], 'jupiter set', obcolor['jupiter'])
+label_object (times, 'jupiter', 'rise')
+label_object (times, 'jupiter', 'transit')
+label_object (times, 'jupiter', 'set')
 
 axes.plot (days, times["saturn"]["rise"], color=obcolor['saturn'])
 axes.plot (days, times["saturn"]["transit"], color=obcolor['saturn'])
 axes.plot (days, times["saturn"]["set"], color=obcolor['saturn'])
-label_object (times['saturn']['rise'], 'saturn rise', obcolor['saturn'])
-label_object (times['saturn']['transit'], 'saturn transit', obcolor['saturn'])
-label_object (times['saturn']['set'], 'saturn set', obcolor['saturn'])
+label_object (times, 'saturn', 'rise')
+label_object (times, 'saturn', 'transit')
+label_object (times, 'saturn', 'set')
 
 axes.plot (days, times["uranus"]["rise"], color=obcolor['uranus'])
 axes.plot (days, times["uranus"]["transit"], color=obcolor['uranus'])
 axes.plot (days, times["uranus"]["set"], color=obcolor['uranus'])
-label_object (times['uranus']['rise'], 'uranus rise', obcolor['uranus'])
-label_object (times['uranus']['transit'], 'uranus transit', obcolor['uranus'])
-label_object (times['uranus']['set'], 'uranus set', obcolor['uranus'])
+label_object (times, 'uranus', 'rise')
+label_object (times, 'uranus', 'transit')
+label_object (times, 'uranus', 'set')
 
 axes.plot (days, times["sirius"]["transit"], color=obcolor['star'])
-label_object (times['sirius']['transit'], 'sirius transit', obcolor['star'])
+label_object (times, 'sirius', 'transit')
 
 axes.plot (days, times["regulus"]["transit"], color=obcolor['star'])
-label_object (times['regulus']['transit'], 'regulus transit', obcolor['star'])
+label_object (times, 'regulus', 'transit')
 
 #axes.plot (days, times["polaris"]["antitransit"], 'k')
 #axes.plot (days, times["polaris"]["transit"], 'k')
