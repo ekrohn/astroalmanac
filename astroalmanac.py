@@ -35,6 +35,8 @@ parser.add_argument ('--start-date', '--start', '-s', type=str, default=None,
                    help='start date for the chart')
 parser.add_argument ('--end-date', '--end', '-e', type=str, default=None,
                    help='end date for the chart')
+parser.add_argument ('--output-file', '--output', '-o', type=str, default=None,
+                   help='PDF output file')
 parser.add_argument ('--verbose', '-v', action='count',
                    help='verbose')
 args = parser.parse_args ()
@@ -492,4 +494,8 @@ label_object (times['regulus']['transit'], 'regulus transit', obcolor['star'])
 #axes.plot (days, times["polaris"]["antitransit"], 'k')
 #axes.plot (days, times["polaris"]["transit"], 'k')
 
-plt.show ()
+if args.output_file != None:
+    fig.savefig (args.output_file)
+else:
+    plt.show ()
+
