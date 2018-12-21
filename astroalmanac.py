@@ -4,10 +4,14 @@ import datetime
 import ephem
 import math
 import sys
+import time
 
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
+
+process_start_time_wall = time.perf_counter()
+process_start_time_cpu = time.process_time()
 
 Command = sys.argv[0]
 oneday = 1
@@ -152,6 +156,12 @@ def draw_date_lines (start_hour, end_hour, days, axes, times, start_date, where)
 def hours_after (t2, t1):
     return 24.0 * (t2-t1)
 
+def show_elapsed_time():
+    print ("elapsed %3.2f total, %3.2f cpu" % (
+        (time.perf_counter() - process_start_time_wall),
+        (time.process_time() - process_start_time_cpu),
+        ))
+
 def rise_set_transit (object, name, where, times, horizon = '0',
         do_rise = True, do_set = True, do_transit = True,
         do_anti_transit = False, debug = False):
@@ -170,7 +180,6 @@ def rise_set_transit (object, name, where, times, horizon = '0',
     if do_anti_transit: times[name]["antitransit"] = []
     where.date = start_date
     where.horizon = horizon
-    print (name)
     if debug:
         show = "%-3s" % ("day", )
         if do_set: show += "  %7s" % ("set",)
@@ -224,6 +233,8 @@ def rise_set_transit (object, name, where, times, horizon = '0',
             if do_anti_transit: show += "  %7.4f" % (times[name]["antitransit"][i],)
             print (show)
         where.date = where.date + oneday
+    print (name, end=' ')
+    show_elapsed_time()
 
 def label_object (time, label, obcolor):
     '''
