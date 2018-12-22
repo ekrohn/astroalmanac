@@ -27,16 +27,16 @@ parser.add_argument ('--latitude', '--lat', '-N', type=str, default='39.75',
                    help='site latitude degrees north')
 parser.add_argument ('--longitude', '--lon', '-E', type=str, default='-105',
                    help='site longitude degrees east')
-parser.add_argument ('--elevation', '--elev', '-L', type=float, default=1700,
+parser.add_argument ('--elevation', '--elev', '-L', type=float, default=1582,
                    help='site elevation in meters')
 parser.add_argument ('--tzoffset', '--tz', '-Z', type=int, default=-7,
                    help='the offset of the local timezone in hours after UTC')
 parser.add_argument ('--start-date', '--start', '-s', type=str, default=None,
-                   help='start date for the chart')
+        help='start date for the chart. Date can be any string decoded by ephem.Date, e.g., -s 2018 or -s 2018-01. Default: now.')
 parser.add_argument ('--end-date', '--end', '-e', type=str, default=None,
-                   help='end date for the chart')
+        help='end date for the chart. Default: one year after START_DATE.')
 parser.add_argument ('--output-file', '--output', '-o', type=str, default=None,
-                   help='PDF output file')
+        help='PDF output file. Default: displays chart in matplotlib\'s viewer.')
 parser.add_argument ('--verbose', '-v', action='count',
                    help='verbose')
 args = parser.parse_args ()
@@ -132,7 +132,11 @@ def text_rotation (day, time, previous_day, previous_time):
     slope = (time - previous_time) / (day - previous_day)
     # The slope here is odd - one hour in the y-axis is about the same size on
     # the plot as 17 days on the x-axis. So scale the slope accordingly.
-    slope *= 17
+    # On a one year plot *17 works well.
+    # On a 6 month plot *8 works well.
+    # On a 3 month plot *4 works well.
+    # On a 1 month plot *1.5 works well.
+    slope *= days_in_chart * 17.0 / 365.0
     degree = math.degrees (math.atan (slope))
     # print ("text rotation %3.2f deg, (%3.2f - %3.2f) / (%3.2f - %3.2f)" % ( degree, time, previous_time, day, previous_day))
     return degree
@@ -164,7 +168,7 @@ def draw_time_lines (start_hour, end_hour, days, axes, times):
                 color=obcolor['fullgrid'], linewidth=0.0,
                 marker='+', markerfacecolor=obcolor['fullgrid'], markersize=0.1)
     # Solid line for midnight localtime (non-DST).
-    axes.plot (days, [12 for d in days], color='black', linewidth=0.1)
+    axes.plot (days, [12 for d in days], color='black', linewidth=0.5)
     return
 
 def draw_date_lines (start_hour, end_hour, days, axes, times, start_date, where):
@@ -211,8 +215,6 @@ def draw_date_lines (start_hour, end_hour, days, axes, times, start_date, where)
         previous_d = d
         previous_sun_rise = sun_rise
         previous_sun_set = sun_set
-    # Solid line for midnight localtime (non-DST).
-    axes.plot (days, [12 for i in days], color='black')
     return
 
 def hours_after (t2, t1):
@@ -308,7 +310,7 @@ def choose_arg (kwname, kwargs, objname, globalargs):
     return value
 
 def rotated_label (label, x1, y1, x0, y0, va, color):
-    print (label)
+    # print (label)
     rotation = text_rotation (x1,y1, x0,y0)
     # Matplotlib has odd ideas about where to place rotated text
     # with respect to the curve when va="bottom" and ha="center".
